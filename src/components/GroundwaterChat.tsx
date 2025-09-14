@@ -7,7 +7,14 @@ import { Mic, MicOff, Send, Globe, BarChart3, Droplets, TrendingUp } from 'lucid
 import { cn } from "@/lib/utils";
 import { DataVisualization } from './DataVisualization';
 import { LocationComparison } from './LocationComparison';
-import "../types/speech";
+
+// Simple type declaration for speech recognition
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
 interface Message {
   id: string;
