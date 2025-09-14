@@ -48,6 +48,8 @@ const translations = {
     send: "Send",
     listening: "Listening...",
     processing: "Processing...",
+    micNotSupported: "Voice input not supported on this browser",
+    micPermissionNeeded: "Please allow microphone access",
     sampleQueries: [
       "Show groundwater quality in Delhi",
       "Compare water levels between Mumbai and Pune",
@@ -62,6 +64,8 @@ const translations = {
     send: "भेजें",
     listening: "सुन रहा है...",
     processing: "प्रसंस्करण...",
+    micNotSupported: "इस ब्राउज़र पर वॉइस इनपुट समर्थित नहीं है",
+    micPermissionNeeded: "कृपया माइक्रोफोन की अनुमति दें",
     sampleQueries: [
       "दिल्ली में भूजल गुणवत्ता दिखाएं",
       "मुंबई और पुणे के बीच पानी के स्तर की तुलना करें",
@@ -84,6 +88,7 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
 
   // Initialize speech recognition
   useEffect(() => {
+    console.log('Initializing speech recognition...');
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
@@ -91,19 +96,60 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
       recognitionRef.current.interimResults = false;
       recognitionRef.current.lang = language === 'hi' ? 'hi-IN' : 'en-US';
 
+      recognitionRef.current.onstart = () => {
+        console.log('Speech recognition started');
+        setIsListening(true);
+      };
+
       recognitionRef.current.onresult = (event) => {
+        console.log('Speech recognition result:', event.results);
         const transcript = event.results[0][0].transcript;
+        console.log('Transcript:', transcript);
         setInputValue(transcript);
         setIsListening(false);
       };
 
-      recognitionRef.current.onerror = () => {
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
         setIsListening(false);
+        
+        // Show user-friendly error message
+        let errorMessage = '';
+        switch (event.error) {
+          case 'not-allowed':
+            errorMessage = language === 'hi' 
+              ? 'माइक्रोफोन की अनुमति दें' 
+              : 'Please allow microphone access';
+            break;
+          case 'no-speech':
+            errorMessage = language === 'hi' 
+              ? 'कोई आवाज नहीं सुनी गई' 
+              : 'No speech detected';
+            break;
+          default:
+            errorMessage = language === 'hi' 
+              ? 'वॉइस रिकॉग्निशन में समस्या' 
+              : 'Voice recognition error';
+        }
+        
+        // Add error message to chat
+        const errorMsg: Message = {
+          id: Date.now().toString(),
+          text: errorMessage,
+          isUser: false,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMsg]);
       };
 
       recognitionRef.current.onend = () => {
+        console.log('Speech recognition ended');
         setIsListening(false);
       };
+
+      console.log('Speech recognition initialized successfully');
+    } else {
+      console.error('Speech recognition not supported');
     }
   }, [language]);
 
@@ -172,9 +218,52 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
   };
 
   const startListening = () => {
-    if (recognitionRef.current) {
-      setIsListening(true);
+    console.log('Start listening clicked');
+    
+    if (!recognitionRef.current) {
+      console.error('Speech recognition not initialized');
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        text: language === 'hi' 
+          ? 'वॉइस रिकॉग्निशन उपलब्ध नहीं है' 
+          : 'Voice recognition not available',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+      return;
+    }
+
+    // Check if we're on HTTPS (required for speech recognition)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      console.error('HTTPS required for speech recognition');
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        text: language === 'hi' 
+          ? 'HTTPS कनेक्शन की आवश्यकता' 
+          : 'HTTPS connection required for voice',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+      return;
+    }
+
+    try {
+      console.log('Starting speech recognition...');
       recognitionRef.current.start();
+    } catch (error) {
+      console.error('Error starting speech recognition:', error);
+      setIsListening(false);
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        text: language === 'hi' 
+          ? 'वॉइस रिकॉग्निशन शुरू नहीं हो सका' 
+          : 'Could not start voice recognition',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMsg]);
     }
   };
 
@@ -466,7 +555,7 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
               variant="outline"
               size="icon"
               className={cn(
-                "transition-bounce",
+                "transition-bounce relative",
                 isListening && "animate-ripple gradient-water text-primary-foreground"
               )}
               title={t.voiceTooltip}
@@ -475,6 +564,9 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
                 <MicOff className="h-4 w-4" />
               ) : (
                 <Mic className="h-4 w-4" />
+              )}
+              {!recognitionRef.current && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full"></div>
               )}
             </Button>
             
