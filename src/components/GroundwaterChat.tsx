@@ -112,26 +112,26 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
       recognitionRef.current.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
-        
-        // Show user-friendly error message
+
+        // Show user-friendly error message with troubleshooting tips
         let errorMessage = '';
         switch (event.error) {
           case 'not-allowed':
-            errorMessage = language === 'hi' 
-              ? 'माइक्रोफोन की अनुमति दें' 
-              : 'Please allow microphone access';
+            errorMessage = language === 'hi'
+              ? 'माइक्रोफोन की अनुमति दें'
+              : 'Please allow microphone access in your browser settings.';
             break;
           case 'no-speech':
-            errorMessage = language === 'hi' 
-              ? 'कोई आवाज नहीं सुनी गई' 
-              : 'No speech detected';
+            errorMessage = language === 'hi'
+              ? 'कोई आवाज नहीं सुनी गई। कृपया सुनिश्चित करें कि आपका माइक्रोफोन चालू है, अनुमति दी गई है, और स्पष्ट बोलें।'
+              : 'No speech detected. Please make sure your microphone is working, not muted, and you are speaking clearly. Check browser permissions and try again.';
             break;
           default:
-            errorMessage = language === 'hi' 
-              ? 'वॉइस रिकॉग्निशन में समस्या' 
-              : 'Voice recognition error';
+            errorMessage = language === 'hi'
+              ? 'वॉइस रिकॉग्निशन में समस्या'
+              : 'Voice recognition error.';
         }
-        
+
         // Add error message to chat
         const errorMsg: Message = {
           id: Date.now().toString(),
@@ -145,6 +145,26 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
       recognitionRef.current.onend = () => {
         console.log('Speech recognition ended');
         setIsListening(false);
+      };
+
+      // Add detailed event logging for debugging
+      recognitionRef.current.onaudiostart = () => {
+        console.log('onaudiostart: Audio capturing started');
+      };
+      recognitionRef.current.onsoundstart = () => {
+        console.log('onsoundstart: Sound has been detected');
+      };
+      recognitionRef.current.onspeechstart = () => {
+        console.log('onspeechstart: Speech has been detected');
+      };
+      recognitionRef.current.onspeechend = () => {
+        console.log('onspeechend: Speech has stopped being detected');
+      };
+      recognitionRef.current.onsoundend = () => {
+        console.log('onsoundend: Sound has stopped being detected');
+      };
+      recognitionRef.current.onaudioend = () => {
+        console.log('onaudioend: Audio capturing ended');
       };
 
       console.log('Speech recognition initialized successfully');
@@ -269,9 +289,89 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
 
   const generateResponse = async (userMessage: string): Promise<Message> => {
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     const lowerMessage = userMessage.toLowerCase();
-    
+
+    // Simple city extraction (expand this list as needed)
+    const knownCities = [
+      'delhi', 'mumbai', 'pune', 'bangalore', 'bengaluru', 'chennai', 'kolkata', 'hyderabad', 'ahmedabad', 'jaipur', 'lucknow', 'kanpur', 'nagpur', 'indore', 'bhopal', 'patna', 'vadodara', 'ludhiana', 'agra', 'nashik', 'faridabad', 'meerut', 'rajkot', 'varanasi', 'srinagar', 'aurangabad', 'dhanbad', 'amritsar', 'navi mumbai', 'allahabad', 'ranchi', 'howrah', 'coimbatore', 'jabalpur', 'gwalior', 'vijayawada', 'jodhpur', 'madurai', 'raipur', 'kota', 'guwahati', 'chandigarh', 'solapur', 'hubli', 'mysore', 'tiruchirappalli', 'bareilly', 'aligarh', 'tiruppur', 'moradabad', 'jalandhar', 'bhubaneswar', 'salem', 'warangal', 'ghaziabad', 'thiruvananthapuram', 'guntur', 'bhiwandi', 'saharanpur', 'gorakhpur', 'bikaner', 'amravati', 'noida', 'jamshedpur', 'bhilai', 'cuttack', 'firozabad', 'kochi', 'nellore', 'bhavnagar', 'dehradun', 'durgapur', 'asansol', 'rourkela', 'nanded', 'kolhapur', 'ajmer', 'akola', 'gulbarga', 'jamnagar', 'ujjain', 'loni', 'siliguri', 'jhansi', 'ulhasnagar', 'nellore', 'jammu', 'sangli', 'mangalore', 'europe', 'usa', 'india'
+    ];
+    const foundCities = knownCities.filter(city => lowerMessage.includes(city));
+
+    // If user asks about groundwater quality for a specific city
+    if (foundCities.length > 0 && (lowerMessage.includes('quality') || lowerMessage.includes('गुणवत्ता'))) {
+      return {
+        id: Date.now().toString(),
+        text: language === 'hi'
+          ? `${foundCities.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')} के लिए भूजल गुणवत्ता डेटा। डेटा से पता चलता है कि पानी की गुणवत्ता अच्छी है।`
+          : `Groundwater quality data for ${foundCities.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')}. The data shows good water quality with acceptable TDS levels.`,
+        isUser: false,
+        timestamp: new Date(),
+        showChart: true,
+        suggestions: [
+          language === 'hi' ? 'पानी का स्तर ट्रेंड दिखाएं' : 'Show water level trends',
+          language === 'hi' ? 'अन्य शहरों से तुलना करें' : 'Compare with other cities',
+          language === 'hi' ? 'भविष्य की भविष्यवाणी' : 'Future predictions'
+        ]
+      };
+    }
+
+    // If user asks to compare two or more cities
+    if (foundCities.length >= 2 && (lowerMessage.includes('compare') || lowerMessage.includes('तुलना'))) {
+      return {
+        id: Date.now().toString(),
+        text: language === 'hi'
+          ? `${foundCities.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(' और ')} के बीच भूजल तुलना।`
+          : `Here's a comparison of groundwater data between ${foundCities.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(' and ')}.`,
+        isUser: false,
+        timestamp: new Date(),
+        showComparison: true,
+        suggestions: [
+          language === 'hi' ? 'और शहर जोड़ें' : 'Add more cities',
+          language === 'hi' ? 'विस्तृत रिपोर्ट' : 'Detailed report',
+          language === 'hi' ? 'डाउनलोड डेटा' : 'Download data'
+        ]
+      };
+    }
+
+    // If user asks for prediction for a city
+    if (foundCities.length > 0 && (lowerMessage.includes('predict') || lowerMessage.includes('भविष्यवाणी'))) {
+      return {
+        id: Date.now().toString(),
+        text: language === 'hi'
+          ? `${foundCities.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')} के लिए अगले 5 साल की भूजल स्तर की भविष्यवाणी।`
+          : `Here's the 5-year prediction for groundwater levels in ${foundCities.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')}.`,
+        isUser: false,
+        timestamp: new Date(),
+        showChart: true,
+        data: { isPrediction: true },
+        suggestions: [
+          language === 'hi' ? 'जोखिम विश्लेषण' : 'Risk analysis',
+          language === 'hi' ? 'सुझाव दें' : 'Get recommendations',
+          language === 'hi' ? 'अलार्ट सेट करें' : 'Set alerts'
+        ]
+      };
+    }
+
+    // If user asks for level for a city
+    if (foundCities.length > 0 && (lowerMessage.includes('level') || lowerMessage.includes('स्तर'))) {
+      return {
+        id: Date.now().toString(),
+        text: language === 'hi'
+          ? `${foundCities.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')} में वर्तमान भूजल स्तर सामान्य है।`
+          : `Current groundwater level in ${foundCities.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')} is normal.`,
+        isUser: false,
+        timestamp: new Date(),
+        showChart: true,
+        suggestions: [
+          language === 'hi' ? 'ऐतिहासिक डेटा' : 'Historical data',
+          language === 'hi' ? 'मासिक ट्रेंड' : 'Monthly trends',
+          language === 'hi' ? 'अन्य स्थान देखें' : 'Check other locations'
+        ]
+      };
+    }
+
+    // Fallback to previous logic if no city found
     if (lowerMessage.includes('quality') || lowerMessage.includes('गुणवत्ता')) {
       return {
         id: Date.now().toString(),
@@ -288,7 +388,7 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
         ]
       };
     }
-    
+
     if (lowerMessage.includes('compare') || lowerMessage.includes('तुलना')) {
       return {
         id: Date.now().toString(),
@@ -305,7 +405,7 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
         ]
       };
     }
-    
+
     if (lowerMessage.includes('predict') || lowerMessage.includes('भविष्यवाणी')) {
       return {
         id: Date.now().toString(),
@@ -323,7 +423,7 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
         ]
       };
     }
-    
+
     if (lowerMessage.includes('level') || lowerMessage.includes('स्तर')) {
       return {
         id: Date.now().toString(),
@@ -340,7 +440,7 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
         ]
       };
     }
-    
+
     return {
       id: Date.now().toString(),
       text: language === 'hi'
