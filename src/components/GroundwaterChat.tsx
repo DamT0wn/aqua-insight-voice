@@ -24,6 +24,14 @@ interface Message {
   data?: any;
   showChart?: boolean;
   showComparison?: boolean;
+  suggestions?: string[];
+}
+
+interface LocationData {
+  latitude: number;
+  longitude: number;
+  city?: string;
+  state?: string;
 }
 
 interface GroundwaterChatProps {
@@ -67,6 +75,8 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
   const [inputValue, setInputValue] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [userLocation, setUserLocation] = useState<LocationData | null>(null);
+  const [locationPermission, setLocationPermission] = useState<'pending' | 'granted' | 'denied'>('pending');
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -105,6 +115,62 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
     scrollToBottom();
   }, [messages]);
 
+  // Request location permission on component mount
+  useEffect(() => {
+    requestLocationPermission();
+  }, []);
+
+  const requestLocationPermission = () => {
+    if (!navigator.geolocation) {
+      setLocationPermission('denied');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location: LocationData = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        setUserLocation(location);
+        setLocationPermission('granted');
+        
+        // Add welcome message with location
+        const welcomeMessage: Message = {
+          id: Date.now().toString(),
+          text: language === 'hi' 
+            ? `आपका स्थान मिल गया! अब मैं आपके क्षेत्र के लिए भूजल की जानकारी प्रदान कर सकता हूं।`
+            : `Location found! I can now provide groundwater information for your area.`,
+          isUser: false,
+          timestamp: new Date(),
+          suggestions: [
+            language === 'hi' ? 'मेरे क्षेत्र में पानी की गुणवत्ता कैसी है?' : 'How is water quality in my area?',
+            language === 'hi' ? 'पानी का स्तर दिखाएं' : 'Show water levels',
+            language === 'hi' ? '5 साल की भविष्यवाणी' : '5-year prediction'
+          ]
+        };
+        setMessages([welcomeMessage]);
+      },
+      (error) => {
+        setLocationPermission('denied');
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          text: language === 'hi'
+            ? 'स्थान की अनुमति नहीं मिली। आप अभी भी किसी भी स्थान के बारे में पूछ सकते हैं।'
+            : 'Location permission denied. You can still ask about any location.',
+          isUser: false,
+          timestamp: new Date(),
+          suggestions: [
+            language === 'hi' ? 'दिल्ली में पानी की गुणवत्ता' : 'Water quality in Delhi',
+            language === 'hi' ? 'मुंबई और पुणे की तुलना' : 'Compare Mumbai and Pune',
+            language === 'hi' ? 'बैंगलोर का डेटा' : 'Bangalore data'
+          ]
+        };
+        setMessages([errorMessage]);
+      }
+    );
+  };
+
   const startListening = () => {
     if (recognitionRef.current) {
       setIsListening(true);
@@ -121,11 +187,16 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
       return {
         id: Date.now().toString(),
         text: language === 'hi' 
-          ? "यहाँ आपके क्षेत्र के लिए भूजल गुणवत्ता डेटा है। डेटा से पता चलता है कि पानी की गुणवत्ता अच्छी है।"
-          : "Here's the groundwater quality data for your area. The data shows good water quality with acceptable TDS levels.",
+          ? `${userLocation ? 'आपके क्षेत्र' : 'इस क्षेत्र'} के लिए भूजल गुणवत्ता डेटा। डेटा से पता चलता है कि पानी की गुणवत्ता अच्छी है।`
+          : `Groundwater quality data for ${userLocation ? 'your area' : 'this area'}. The data shows good water quality with acceptable TDS levels.`,
         isUser: false,
         timestamp: new Date(),
-        showChart: true
+        showChart: true,
+        suggestions: [
+          language === 'hi' ? 'पानी का स्तर ट्रेंड दिखाएं' : 'Show water level trends',
+          language === 'hi' ? 'अन्य शहरों से तुलना करें' : 'Compare with other cities',
+          language === 'hi' ? 'भविष्य की भविष्यवाणी' : 'Future predictions'
+        ]
       };
     }
     
@@ -133,11 +204,16 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
       return {
         id: Date.now().toString(),
         text: language === 'hi'
-          ? "यहाँ दो स्थानों के बीच भूजल की तुलना है।"
-          : "Here's a comparison of groundwater data between the two locations.",
+          ? 'यहाँ दो स्थानों के बीच भूजल की तुलना है।'
+          : 'Here\'s a comparison of groundwater data between the two locations.',
         isUser: false,
         timestamp: new Date(),
-        showComparison: true
+        showComparison: true,
+        suggestions: [
+          language === 'hi' ? 'और शहर जोड़ें' : 'Add more cities',
+          language === 'hi' ? 'विस्तृत रिपोर्ट' : 'Detailed report',
+          language === 'hi' ? 'डाउनलोड डेटा' : 'Download data'
+        ]
       };
     }
     
@@ -145,22 +221,49 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
       return {
         id: Date.now().toString(),
         text: language === 'hi'
-          ? "अगले 5 साल के लिए भूजल स्तर की भविष्यवाणी दिखाई गई है।"
-          : "Here's the 5-year prediction for groundwater levels in your area.",
+          ? 'अगले 5 साल के लिए भूजल स्तर की भविष्यवाणी दिखाई गई है।'
+          : 'Here\'s the 5-year prediction for groundwater levels in your area.',
         isUser: false,
         timestamp: new Date(),
         showChart: true,
-        data: { isPrediction: true }
+        data: { isPrediction: true },
+        suggestions: [
+          language === 'hi' ? 'जोखिम विश्लेषण' : 'Risk analysis',
+          language === 'hi' ? 'सुझाव दें' : 'Get recommendations',
+          language === 'hi' ? 'अलार्ट सेट करें' : 'Set alerts'
+        ]
+      };
+    }
+    
+    if (lowerMessage.includes('level') || lowerMessage.includes('स्तर')) {
+      return {
+        id: Date.now().toString(),
+        text: language === 'hi'
+          ? `${userLocation ? 'आपके क्षेत्र' : 'इस क्षेत्र'} में वर्तमान भूजल स्तर सामान्य है।`
+          : `Current groundwater level in ${userLocation ? 'your area' : 'this area'} is normal.`,
+        isUser: false,
+        timestamp: new Date(),
+        showChart: true,
+        suggestions: [
+          language === 'hi' ? 'ऐतिहासिक डेटा' : 'Historical data',
+          language === 'hi' ? 'मासिक ट्रेंड' : 'Monthly trends',
+          language === 'hi' ? 'अन्य स्थान देखें' : 'Check other locations'
+        ]
       };
     }
     
     return {
       id: Date.now().toString(),
       text: language === 'hi'
-        ? "मैं आपकी मदद करने के लिए यहाँ हूँ। कृपया भूजल गुणवत्ता, तुलना या भविष्यवाणी के बारे में पूछें।"
-        : "I'm here to help you with groundwater information. Please ask about water quality, comparisons, or predictions.",
+        ? 'मैं आपकी मदद करने के लिए यहाँ हूँ। कृपया भूजल गुणवत्ता, तुलना या भविष्यवाणी के बारे में पूछें।'
+        : 'I\'m here to help you with groundwater information. Please ask about water quality, comparisons, or predictions.',
       isUser: false,
-      timestamp: new Date()
+      timestamp: new Date(),
+      suggestions: [
+        language === 'hi' ? 'पानी की गुणवत्ता जांचें' : 'Check water quality',
+        language === 'hi' ? 'शहरों की तुलना' : 'Compare cities',
+        language === 'hi' ? 'भविष्य की रिपोर्ट' : 'Future reports'
+      ]
     };
   };
 
@@ -290,6 +393,28 @@ export const GroundwaterChat: React.FC<GroundwaterChatProps> = ({ language, onLa
                   {message.showComparison && (
                     <div className="mt-4">
                       <LocationComparison />
+                    </div>
+                  )}
+
+                  {/* Suggestion Chips */}
+                  {message.suggestions && !message.isUser && (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs text-muted-foreground font-medium">
+                        {language === 'hi' ? 'सुझाव:' : 'Suggestions:'}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {message.suggestions.map((suggestion, index) => (
+                          <Button
+                            key={index}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-8 px-3 hover:gradient-water hover:text-primary-foreground transition-smooth"
+                            onClick={() => handleSampleQuery(suggestion)}
+                          >
+                            {suggestion}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
